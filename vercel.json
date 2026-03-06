@@ -17,7 +17,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/index.ts",
+      "dest": "/api/index",
       "headers": {
         "x-robots-tag": "noindex",
         "Cache-Control": "no-store, max-age=0"
