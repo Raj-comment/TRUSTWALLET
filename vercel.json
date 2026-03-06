@@ -4,8 +4,8 @@
   "outputDirectory": "dist/public",
   "functions": {
     "api/[...path].ts": {
-      "maxDuration": 60,
-      "includeFiles": "dist/**"
+      "runtime": "nodejs20.x",
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -14,11 +14,10 @@
       "schedule": "* * * * *"
     }
   ],
-<<<<<<< HEAD
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/[...path]"
+      "dest": "/api/$1"
     },
     {
       "handle": "filesystem"
@@ -27,11 +26,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-=======
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[...path]" },
-    { "source": "/(.*)", "destination": "/index.html" }
->>>>>>> 1721ef01083669cd516118c504dc4c23ca4c21a6
   ]
 }
- 
