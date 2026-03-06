@@ -3,9 +3,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
   "functions": {
-    "api/[...path].ts": {
+    "api/index.ts": {
       "runtime": "nodejs20.x",
-      "maxDuration": 60
+      "maxDuration": 300,
+      "memory": 1024
     }
   },
   "crons": [
@@ -17,7 +18,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "dest": "/api/index.ts",
+      "headers": {
+        "x-robots-tag": "noindex",
+        "Cache-Control": "no-store, max-age=0"
+      }
     },
     {
       "handle": "filesystem"
@@ -26,5 +31,7 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ]
+  ],
+  "cleanUrls": true,
+  "trailingSlash": false
 }
