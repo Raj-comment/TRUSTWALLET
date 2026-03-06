@@ -64,24 +64,19 @@ async function buildAll() {
   });
 
   // Bundle the Vercel serverless entry point so that all server/ and shared/
-  // imports are inlined into a single file.  This avoids ERR_MODULE_NOT_FOUND
-  // at runtime because Vercel's @vercel/node builder doesn't compile imported
-  // TypeScript files outside the api/ directory.
+  // imports are inlined into a single file.
   console.log("building vercel serverless function...");
   await esbuild({
-    entryPoints: ["api/_server.ts"],
+    entryPoints: ["server/vercel-handler.ts"],
     platform: "node",
     bundle: true,
-    format: "esm",
-    outfile: "api/index.js",
+    format: "cjs",
+    outfile: "dist/api.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
     },
     minify: process.env.MINIFY === "true",
     sourcemap: true,
-    banner: {
-      js: 'import { createRequire } from "module"; const require = createRequire(import.meta.url);',
-    },
     external: externals,
     logLevel: "info",
   });

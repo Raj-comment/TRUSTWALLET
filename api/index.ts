@@ -1,17 +1,10 @@
-import type { Express } from "express";
-import { createApp } from "../server/app";
+import type { IncomingMessage, ServerResponse } from "http";
 
-let appPromise: Promise<Express> | null = null;
-
-function getApp() {
-  if (!appPromise) {
-    appPromise = createApp();
-  }
-
-  return appPromise;
-}
-
-export default async function handler(req: any, res: any) {
-  const app = await getApp();
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  // Use a dynamic import to avoid Vercel's static analysis failing on 
+  // missing dependencies during pre-build configuration validation.
+  // The actual server code is compiled into dist/api.cjs during the build step.
+  const modulePath = "../dist/api.cjs";
+  const { default: app } = await import(modulePath);
   return app(req, res);
 }
