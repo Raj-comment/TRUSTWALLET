@@ -1,17 +1,13 @@
-import type { Express } from "express";
-import { createApp } from "../server/app";
+import { createRequire } from "module";
 
-let appPromise: Promise<Express> | null = null;
+const require = createRequire(import.meta.url);
 
-function getApp() {
-  if (!appPromise) {
-    appPromise = createApp();
+let handler: any = null;
+
+export default async function (req: any, res: any) {
+  if (!handler) {
+    const mod = require("../dist/api.cjs");
+    handler = mod.default || mod;
   }
-
-  return appPromise;
-}
-
-export default async function handler(req: any, res: any) {
-  const app = await getApp();
-  return app(req, res);
+  return handler(req, res);
 }
