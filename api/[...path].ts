@@ -1,17 +1,9 @@
-import type { Express } from "express";
-import { createApp } from "../server/app";
+import path from "path";
 
-let appPromise: Promise<Express> | null = null;
+// Load the pre-built serverless bundle produced by `npm run build`.
+// Using require() at runtime avoids Vercel's TS transpiler trying to resolve
+// all server/ imports (many of which need bundled native deps).
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { default: handler } = require(path.join(process.cwd(), "dist", "api.cjs"));
 
-function getApp() {
-  if (!appPromise) {
-    appPromise = createApp();
-  }
-
-  return appPromise;
-}
-
-export default async function handler(req: any, res: any) {
-  const app = await getApp();
-  return app(req, res);
-}
+export default handler;
