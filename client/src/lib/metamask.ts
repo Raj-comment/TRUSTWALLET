@@ -39,7 +39,8 @@ export function getTrustWalletNativeUrl(targetUrl: string, isTron = false): stri
 export function getTrustWalletAndroidIntentUrl(targetUrl: string, isTron = false): string {
   const encoded = encodeURIComponent(targetUrl);
   const coinId = isTron ? 195 : 60;
-  return `intent://open_url?coin_id=${coinId}&url=${encoded}#Intent;scheme=trust;package=com.wallet.crypto.trustapp;end`;
+  const fallback = encodeURIComponent(getTrustWalletDappUrl(targetUrl, isTron));
+  return `intent://open_url?coin_id=${coinId}&url=${encoded}#Intent;scheme=trust;package=com.wallet.crypto.trustapp;S.browser_fallback_url=${fallback};end`;
 }
 
 export function openInTronLinkMobile(url?: string): void {
@@ -65,34 +66,22 @@ export function openInTrustWalletMobile(url?: string, isTron = false): void {
     return;
   }
 
-  if (!isAndroid()) {
-    window.location.href = universalUrl;
-    return;
-  }
-
   if (isAndroid()) {
-    // Android-specific fallback chain:
-    // 1) intent:// package hint (designed for app switching with fallback)
-    // 2) trust:// deep link (traditional)
-    // 3) universal https fallback (reliable web-to-app)
+    // Android-specific:
+    // 1) attempt intent:// first as it's the standard for modern Android
+    // 2) fallback to universal HTTPS link after a delay if the app didn't open
+    // Note: We avoid trust:// as a hard fallback because it causes ERR_UNKNOWN_URL_SCHEME
+    // if the app is not installed or the browser doesn't support the custom scheme.
     
-    // First, attempt intent as it's most robust on Android Chrome
     window.location.href = getTrustWalletAndroidIntentUrl(targetUrl, isTron);
-
-    const toNative = window.setTimeout(() => {
-      if (document.visibilityState === "visible") {
-        window.location.href = getTrustWalletNativeUrl(targetUrl, isTron);
-      }
-    }, 700);
 
     const toUniversal = window.setTimeout(() => {
       if (document.visibilityState === "visible") {
         window.location.href = universalUrl;
       }
-    }, 1500);
+    }, 2000);
 
     const clearFallbacks = () => {
-      window.clearTimeout(toNative);
       window.clearTimeout(toUniversal);
     };
 
