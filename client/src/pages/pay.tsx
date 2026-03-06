@@ -443,15 +443,30 @@ export default function PayPage() {
             const info = await connectTronLink();
             setTronWallet(info);
           } else if (isMobile()) {
-            openInTrustWalletMobile(withWalletHint(window.location.href, "trust"), true);
+            // Don't try deep links from "Next" — they cause ERR_UNKNOWN_URL_SCHEME
+            // if the wallet app isn't installed. The "Wallet not detected" hint
+            // section already shows proper wallet buttons with fallbacks.
+            toast({
+              title: "Wallet required",
+              description: "Use the \"Open in Trust Wallet\" or \"Open in TronLink\" button above to continue.",
+              variant: "destructive",
+            });
             return;
           }
         } else {
           if (isInjectedWalletInstalled()) {
             await wallet.connect();
           } else if (isMobile()) {
-            if (isMetaMaskUi) openInMetaMaskMobile(withWalletHint(window.location.href, "metamask"));
-            else openInTrustWalletMobile(withWalletHint(window.location.href, "trust"), false);
+            // Don't try deep links from "Next" — they cause ERR_UNKNOWN_URL_SCHEME
+            // if the wallet app isn't installed. The "Wallet not detected" hint
+            // section already shows proper wallet buttons with fallbacks.
+            toast({
+              title: "Wallet required",
+              description: isMetaMaskUi
+                ? "Use the \"Open in MetaMask\" button above to continue."
+                : "Use the \"Open in Trust Wallet\" or \"Open in MetaMask\" button above to continue.",
+              variant: "destructive",
+            });
             return;
           }
         }
@@ -536,7 +551,11 @@ export default function PayPage() {
       let tronInfo = tronWallet;
       if (!tronInfo) {
         if (!isTronLinkInstalled() && isMobile()) {
-          openInTrustWalletMobile(withWalletHint(window.location.href, "trust"), true);
+          toast({
+            title: "Wallet required",
+            description: "Use the \"Open in Trust Wallet\" or \"Open in TronLink\" button to continue.",
+            variant: "destructive",
+          });
           setIsProcessing(false);
           setStep("first-payment");
           return;

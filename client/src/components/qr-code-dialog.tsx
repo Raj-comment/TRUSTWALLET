@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Copy, Check, ExternalLink, Clock, Download, Smartphone } from "lucide-react";
-import { getMetaMaskDappUrl, getTrustWalletDappUrl } from "@/lib/metamask";
 
 interface Props {
   plan: Plan;
@@ -104,6 +103,12 @@ export default function QRCodeDialog({ plan, open, onOpenChange }: Props) {
   const trustPayUrl = withWalletHint(payUrl, "trust");
   const metamaskPayUrl = withWalletHint(payUrl, "metamask");
 
+  // All QR codes now use standard HTTPS URLs that work in any browser/scanner.
+  // The /open/pay/ landing page handles wallet detection and offers buttons
+  // to open the correct wallet app, avoiding ERR_UNKNOWN_URL_SCHEME errors.
+  const trustShareUrl = withWalletHint(shareUrl, "trust");
+  const metamaskShareUrl = withWalletHint(shareUrl, "metamask");
+
   const qrConfigs = useMemo(
     () =>
       [
@@ -117,19 +122,19 @@ export default function QRCodeDialog({ plan, open, onOpenChange }: Props) {
         {
           key: "trust",
           label: "Trust Wallet QR",
-          description: "Opens directly in Trust Wallet",
-          url: getTrustWalletDappUrl(trustPayUrl),
+          description: "Opens wallet selector, prefers Trust Wallet",
+          url: trustShareUrl,
           openUrl: trustPayUrl,
         },
         {
           key: "metamask",
           label: "MetaMask QR",
-          description: "Opens directly in MetaMask",
-          url: getMetaMaskDappUrl(metamaskPayUrl),
+          description: "Opens wallet selector, prefers MetaMask",
+          url: metamaskShareUrl,
           openUrl: metamaskPayUrl,
         },
       ] as const,
-    [shareUrl, trustPayUrl, metamaskPayUrl]
+    [shareUrl, trustShareUrl, metamaskShareUrl, trustPayUrl, metamaskPayUrl]
   );
 
   useEffect(() => {
