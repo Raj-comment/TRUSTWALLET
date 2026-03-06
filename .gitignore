@@ -12,3 +12,9 @@ vite.config.ts.*
 .config/
 .local/
 neondb_full_*.sql
+
+.vercel
+
+# Build artifact – Vercel serverless bundle
+api/index.js
+api/index.js.map

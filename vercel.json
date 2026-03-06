@@ -3,7 +3,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
   "functions": {
-    "api/index.ts": {
+    "api/index.js": {
       "maxDuration": 300,
       "memory": 1024
     }
@@ -17,7 +17,7 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/index",
+      "dest": "/api/index.js",
       "headers": {
         "x-robots-tag": "noindex",
         "Cache-Control": "no-store, max-age=0"

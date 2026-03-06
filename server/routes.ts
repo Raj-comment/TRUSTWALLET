@@ -3,7 +3,7 @@ import session from "express-session";
 import { storage } from "./storage";
 import { loginSchema, type Subscription, type Plan, normalizeAddress, compareAddresses, isValidAddress, EVM_ADDRESS_REGEX, TRON_ADDRESS_REGEX } from "../shared/schema";
 import { isAllowedVideoUrl } from "../shared/video";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import connectPgSimple from "connect-pg-simple";
 import { z } from "zod";
 import { encrypt, decrypt } from "./crypto";
