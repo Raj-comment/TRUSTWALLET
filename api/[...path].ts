@@ -1,5 +1,6 @@
 import type { Express } from "express";
-import { createApp } from "../server/app.js";
+import { createApp } from "../server/app";
+
 let appPromise: Promise<Express> | null = null;
 
 function getApp() {
