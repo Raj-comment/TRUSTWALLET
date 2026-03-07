@@ -1,6 +1,7 @@
 import { TronWeb } from "tronweb";
 import { type Plan } from "../shared/schema";
 import { getRpcUrls } from "./rpc";
+import { getContractForNetwork } from "../shared/contracts";
 
 export async function verifyTronTx(
   plan: Plan,
@@ -19,10 +20,22 @@ export async function verifyTronTx(
   });
 
   try {
-    // 1. Fetch transaction info
-    const tx = await tronWeb.trx.getTransactionInfo(txHash);
+    // 1. Fetch transaction info (with simple polling to handle TRON propagation delay)
+    let tx: any = null;
+    let attempts = 0;
+    while (attempts < 25) {
+      try {
+        tx = await tronWeb.trx.getTransactionInfo(txHash);
+        if (tx && tx.id) break;
+      } catch (e) {
+        // ignore network glitches
+      }
+      attempts++;
+      await new Promise(r => setTimeout(r, 2000)); // wait 2s
+    }
+
     if (!tx || !tx.id) {
-      throw new Error("Transaction not found on TRON network");
+      throw new Error(`Transaction not found on TRON network after ${attempts} attempts`);
     }
 
     if (tx.result === "FAILED") {
@@ -47,6 +60,15 @@ export async function verifyTronTx(
     // Verify sender
     if (senderBase58 !== payerAddress) {
        throw new Error(`Sender mismatch: expected ${payerAddress}, got ${senderBase58}`);
+    }
+
+    // Check if it's the subscription contract instead of the token contract
+    const subContractAddr = getContractForNetwork(plan.networkId) || plan.contractAddress;
+    if (subContractAddr && targetContractBase58 === subContractAddr) {
+       // It's a call to the subscription contract (activate). We'll trust the successful receipt.
+       return {
+         blockTimestampMs: tx.blockTimeStamp || Date.now(),
+       };
     }
 
     // Verify token address (TRC-20 contract)

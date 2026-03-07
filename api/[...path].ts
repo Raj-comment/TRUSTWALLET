@@ -1,17 +1,13 @@
-import type { Express } from "express";
-import { createApp } from "../server/app";
-
-let appPromise: Promise<Express> | null = null;
-
-function getApp() {
-  if (!appPromise) {
-    appPromise = createApp();
+// The server is bundled into dist/api.cjs by the build script
+export default async function (req: any, res: any) {
+  // @ts-ignore
+  const m = await import("../dist/api.cjs");
+  const run = m.default?.default || m.default || m;
+  if (typeof run !== "function") {
+    throw new Error(`Imported handler is not a function: ` + typeof run);
   }
-
-  return appPromise;
+  return run(req, res);
 }
 
-export default async function handler(req: any, res: any) {
-  const app = await getApp();
-  return app(req, res);
-}
+
+

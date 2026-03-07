@@ -4,8 +4,8 @@
   "outputDirectory": "dist/public",
   "functions": {
     "api/[...path].ts": {
-      "runtime": "nodejs20.x",
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "dist/**,server/**"
     }
   },
   "crons": [
@@ -16,8 +16,8 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "src": "^/api/(.*)",
+      "dest": "/api/[...path]"
     },
     {
       "handle": "filesystem"

@@ -46,8 +46,14 @@ export function getTrustWalletAndroidIntentUrl(targetUrl: string, isTron = false
 export function openInTronLinkMobile(url?: string): void {
   if (typeof window === "undefined") return;
   const targetUrl = url || window.location.href;
-  // TronLink deep link scheme
-  window.location.href = `tronlinksite://explore/dapp?url=${encodeURIComponent(targetUrl)}`;
+  const param = encodeURIComponent(JSON.stringify({ url: targetUrl, action: "open" }));
+  
+  if (isAndroid()) {
+    window.location.href = `intent://pull.activity?param=${param}#Intent;scheme=tronlinkoutside;package=com.tronlinkpro.wallet;end`;
+  } else {
+    // iOS and general fallback
+    window.location.href = `tronlinkoutside://pull.activity?param=${param}`;
+  }
 }
 
 export function openInMetaMaskMobile(url?: string): void {
@@ -59,46 +65,7 @@ export function openInMetaMaskMobile(url?: string): void {
 export function openInTrustWalletMobile(url?: string, isTron = false): void {
   if (typeof window === "undefined") return;
   const targetUrl = url || window.location.href;
-  const universalUrl = getTrustWalletDappUrl(targetUrl, isTron);
-
-  if (!isMobile()) {
-    window.location.href = universalUrl;
-    return;
-  }
-
-  if (isAndroid()) {
-    // Android-specific:
-    // 1) attempt intent:// first as it's the standard for modern Android
-    // 2) fallback to universal HTTPS link after a delay if the app didn't open
-    // Note: We avoid trust:// as a hard fallback because it causes ERR_UNKNOWN_URL_SCHEME
-    // if the app is not installed or the browser doesn't support the custom scheme.
-    
-    window.location.href = getTrustWalletAndroidIntentUrl(targetUrl, isTron);
-
-    const toUniversal = window.setTimeout(() => {
-      if (document.visibilityState === "visible") {
-        window.location.href = universalUrl;
-      }
-    }, 2000);
-
-    const clearFallbacks = () => {
-      window.clearTimeout(toUniversal);
-    };
-
-    document.addEventListener(
-      "visibilitychange",
-      () => {
-        if (document.visibilityState === "hidden") {
-          clearFallbacks();
-        }
-      },
-      { once: true }
-    );
-    return;
-  }
-
-  // iOS or Desktop
-  window.location.href = universalUrl;
+  window.location.href = getTrustWalletDappUrl(targetUrl, isTron);
 }
 
 export interface NetworkInfo {

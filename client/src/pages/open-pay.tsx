@@ -1,9 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { detectWalletBrand, isMobile, openInMetaMaskMobile, openInTrustWalletMobile } from "@/lib/metamask";
+import { useQuery } from "@tanstack/react-query";
+import type { Plan } from "@shared/schema";
+import { detectWalletBrand, isMobile, openInMetaMaskMobile, openInTrustWalletMobile, openInTronLinkMobile } from "@/lib/metamask";
 import { AlertCircle, ArrowLeft, Copy, ExternalLink, Wallet } from "lucide-react";
 
-function withWalletHint(pathOrUrl: string, brand: "trust" | "metamask"): string {
+const TronIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M12 2.1l9.1 15.8H2.9L12 2.1z M12 5.8L5.7 16.7h12.6L12 5.8z" />
+  </svg>
+);
+
+function withWalletHint(pathOrUrl: string, brand: "trust" | "metamask" | "tronlink"): string {
   try {
     const url = new URL(pathOrUrl, typeof window !== "undefined" ? window.location.origin : "http://localhost");
     url.searchParams.set("wallet", brand);
@@ -26,6 +34,13 @@ export default function OpenPayPage() {
   }, [payPath]);
   const trustPayUrl = useMemo(() => withWalletHint(payUrl, "trust"), [payUrl]);
   const metamaskPayUrl = useMemo(() => withWalletHint(payUrl, "metamask"), [payUrl]);
+  const tronlinkPayUrl = useMemo(() => withWalletHint(payUrl, "tronlink"), [payUrl]);
+
+  const { data: plan } = useQuery<Plan>({
+    queryKey: ["/api/plans/code", code],
+    enabled: !!code,
+  });
+  const isTronPlan = plan?.networkId?.startsWith("tron_") ?? false;
 
   const [copied, setCopied] = useState(false);
 
@@ -88,25 +103,39 @@ export default function OpenPayPage() {
         </section>
 
         <section className="mt-6 space-y-3">
-          <button
-            type="button"
-            className="flex h-14 w-full items-center justify-center rounded-full bg-[#4bf58c] text-lg font-semibold text-[#112218] hover:bg-[#43e381]"
-            onClick={() => openInTrustWalletMobile(trustPayUrl)}
-            data-testid="button-open-trustwallet"
-          >
-            <Wallet className="mr-2 h-5 w-5" />
-            Open Trust Wallet
-          </button>
+          {isTronPlan ? (
+            <button
+              type="button"
+              className="flex h-14 w-full items-center justify-center rounded-full bg-[#4bf58c] text-lg font-semibold text-[#112218] hover:bg-[#43e381]"
+              onClick={() => openInTronLinkMobile(tronlinkPayUrl)}
+              data-testid="button-open-tronlink"
+            >
+              <TronIcon className="mr-2 h-5 w-5" />
+              Open TronLink
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="flex h-14 w-full items-center justify-center rounded-full bg-[#4bf58c] text-lg font-semibold text-[#112218] hover:bg-[#43e381]"
+                onClick={() => openInTrustWalletMobile(trustPayUrl)}
+                data-testid="button-open-trustwallet"
+              >
+                <Wallet className="mr-2 h-5 w-5" />
+                Open Trust Wallet
+              </button>
 
-          <button
-            type="button"
-            className="flex h-14 w-full items-center justify-center rounded-full border border-[#3d434c] bg-[#1d2128] text-lg font-semibold text-[#eef1f4] hover:bg-[#232832]"
-            onClick={() => openInMetaMaskMobile(metamaskPayUrl)}
-            data-testid="button-open-metamask"
-          >
-            <Wallet className="mr-2 h-5 w-5" />
-            Open MetaMask
-          </button>
+              <button
+                type="button"
+                className="flex h-14 w-full items-center justify-center rounded-full border border-[#3d434c] bg-[#1d2128] text-lg font-semibold text-[#eef1f4] hover:bg-[#232832]"
+                onClick={() => openInMetaMaskMobile(metamaskPayUrl)}
+                data-testid="button-open-metamask"
+              >
+                <Wallet className="mr-2 h-5 w-5" />
+                Open MetaMask
+              </button>
+            </>
+          )}
 
           <button
             type="button"

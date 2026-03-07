@@ -149,7 +149,7 @@ function formatUsd(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-type PayUiBrand = "trust" | "metamask";
+type PayUiBrand = "trust" | "metamask" | "tronlink";
 type PayQuote = {
   tokenSymbol: string;
   networkId: string | null;
@@ -238,6 +238,7 @@ export default function PayPage() {
 
   // TRON-specific state
   const [tronWallet, setTronWallet] = useState<TronWalletInfo | null>(null);
+  const [hasInjectedWallet, setHasInjectedWallet] = useState(false);
 
   const walletHint = useMemo(() => parseWalletHint(locationPath), [locationPath]);
   const uiBrand = useMemo(() => resolvePayUiBrand(wallet.walletBrand, walletHint), [wallet.walletBrand, walletHint]);
@@ -278,6 +279,19 @@ export default function PayPage() {
 
   // Determine if this plan uses a TRON network
   const isTronPlan = plan?.networkId ? isTronNetwork(plan.networkId) : false;
+  
+  useEffect(() => {
+    const check = () => {
+      const isTron = plan?.networkId ? isTronNetwork(plan.networkId) : false;
+      const detected = isTron
+        ? isTronLinkInstalled()
+        : typeof window !== "undefined" && typeof (window as any).ethereum !== "undefined";
+      if (detected) setHasInjectedWallet(true);
+    };
+    check();
+    const interval = setInterval(check, 500);
+    return () => clearInterval(interval);
+  }, [plan?.networkId]);
 
   const quoteTokenSymbol = (plan?.tokenSymbol || "ETH").toUpperCase();
   const quoteNetworkId = plan?.networkId || "";
@@ -313,12 +327,10 @@ export default function PayPage() {
       // ignore
     }
 
-    if (isMobile()) {
-      if (uiBrand === "metamask") {
-        openInMetaMaskMobile(homeUrl);
-      } else {
-        openInTrustWalletMobile(homeUrl, isTronPlan);
-      }
+    if (uiBrand === "metamask") {
+      openInMetaMaskMobile(homeUrl);
+    } else {
+      openInTrustWalletMobile(homeUrl, isTronPlan);
     }
 
     // Fallback when app switch is blocked/unavailable.
@@ -439,7 +451,7 @@ export default function PayPage() {
     if (!isConnected) {
       try {
         if (isTronPlan) {
-          if (isTronLinkInstalled()) {
+          if (isTronLinkInstalled() || !!((window as any).trustwallet) || !!((window as any).ethereum?.isTrust)) {
             const info = await connectTronLink();
             setTronWallet(info);
           } else if (isMobile()) {
@@ -448,7 +460,7 @@ export default function PayPage() {
             // section already shows proper wallet buttons with fallbacks.
             toast({
               title: "Wallet required",
-              description: "Use the \"Open in Trust Wallet\" or \"Open in TronLink\" button above to continue.",
+              description: "Use the \"Open in TronLink\" button above to continue.",
               variant: "destructive",
             });
             return;
@@ -553,7 +565,7 @@ export default function PayPage() {
         if (!isTronLinkInstalled() && isMobile()) {
           toast({
             title: "Wallet required",
-            description: "Use the \"Open in Trust Wallet\" or \"Open in TronLink\" button to continue.",
+            description: "Use the \"Open in TronLink\" button above to continue.",
             variant: "destructive",
           });
           setIsProcessing(false);
@@ -565,7 +577,14 @@ export default function PayPage() {
       }
 
       const tronWeb = (window as any).tronWeb;
-      if (!tronInfo?.address || !tronWeb) {
+      let address = tronWeb?.defaultAddress?.base58 || tronWeb?.defaultAddress?.hex;
+      if (!address && typeof tronWeb?.defaultAddress === "string") {
+        address = tronWeb.defaultAddress;
+      }
+      if (!address && tronWeb?.defaultAddress?.name) { // some rare injections
+        address = tronWeb.defaultAddress.name;
+      }
+      if (!tronInfo?.address || !tronWeb || !address) {
         throw new Error("Could not connect to TRON wallet.");
       }
 
@@ -642,18 +661,40 @@ export default function PayPage() {
       }
 
       // Record payment on backend
-      const res = await apiRequest("POST", "/api/subscriptions", {
-        planId: plan.id,
-        payerAddress: tronInfo.address,
-        firstPaymentAmount: requestedAmount,
-        firstPaymentTxHash: txHash,
-        approvalTxHash: txHash,
-        approvedAmount: "0",
-        onChainSubscriptionId: onChainSubId,
-      });
+      let created: any;
+      try {
+        const res = await apiRequest("POST", "/api/subscriptions", {
+          planId: plan.id,
+          payerAddress: tronInfo.address,
+          firstPaymentAmount: requestedAmount,
+          firstPaymentTxHash: txHash,
+          approvalTxHash: txHash, // Defaulting approval hash to the same tx for TRON if no separate approval done
+          approvedAmount: "0",
+          onChainSubscriptionId: onChainSubId,
+        });
+        const payload = await res.json();
+        created = payload?.subscription ?? payload;
+      } catch (err: any) {
+        // If ApiRequest throws an error, it often attaches the JSON response to the Error object (or error message)
+        let errorData: any = null;
+        try {
+           // We'll rely on our standard fetch structure where `apiRequest` throws if status is not ok. 
+           // If error contains "already exists", we can try to fetch the subscription directly via GET endpoint
+           if (err.message && err.message.includes("already exists")) {
+             const checkRes = await fetch(`/api/subscriptions/check/${plan.id}/${tronInfo.address}`);
+             if (checkRes.ok) {
+                created = await checkRes.json();
+             } else {
+                throw err;
+             }
+           } else {
+             throw err;
+           }
+        } catch (subErr) {
+           throw err; // throw original
+        }
+      }
 
-      const payload = await res.json();
-      const created = payload?.subscription ?? payload;
       setSubscription(created);
       toast({ title: "Payment sent!", description: `${plan.tokenSymbol} sent successfully on ${plan.networkName}.` });
       openWalletAppAfterActivation();
@@ -1036,9 +1077,6 @@ export default function PayPage() {
   const onCorrectNetwork = isTronPlan
     ? !tronWallet || tronWallet.chainId.toLowerCase() === plan.networkId.toLowerCase()
     : !wallet.chainId || wallet.chainId.toLowerCase() === plan.networkId.toLowerCase();
-  const hasInjectedWallet = isTronPlan
-    ? isTronLinkInstalled()
-    : typeof window !== "undefined" && typeof (window as any).ethereum !== "undefined";
 
   const showOpenInWalletHint = isMobile() && !hasInjectedWallet;
   const hasUsdQuote = quote?.usdRate !== null && quote?.usdRate !== undefined && Number.isFinite(quote.usdRate);
@@ -1438,38 +1476,44 @@ export default function PayPage() {
                   Wallet not detected in this browser
                 </div>
                 <p className={`mt-1.5 ${hintBodyClass}`}>
-                  Open this link inside Trust Wallet or MetaMask in-app browser, then continue.
+                  {isTronPlan 
+                    ? "Open this link inside the TronLink app to continue." 
+                    : "Open this link inside Trust Wallet or MetaMask in-app browser, then continue."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className={`inline-flex h-10 items-center justify-center rounded-full border px-4 font-semibold ${hintButtonClass}`}
-                    onClick={() => openInTrustWalletMobile(withWalletHint(window.location.href, "trust"), isTronPlan)}
-                    data-testid="button-pay-open-trustwallet"
-                  >
-                    <Wallet className="mr-2 h-4 w-4" />
-                    Open in Trust Wallet
-                  </button>
-                  {isTronPlan && (
+                  {isTronPlan ? (
                     <button
                       type="button"
                       className={`inline-flex h-10 items-center justify-center rounded-full border px-4 font-semibold ${hintButtonClass}`}
-                      onClick={() => openInTronLinkMobile(withWalletHint(window.location.href, "trust"))}
+                      onClick={() => openInTronLinkMobile(withWalletHint(window.location.href, "tronlink"))}
                       data-testid="button-pay-open-tronlink"
                     >
                       <TronIcon className="mr-2 h-4 w-4" />
                       Open in TronLink
                     </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className={`inline-flex h-10 items-center justify-center rounded-full border px-4 font-semibold ${hintButtonClass}`}
+                        onClick={() => openInTrustWalletMobile(withWalletHint(window.location.href, "trust"), isTronPlan)}
+                        data-testid="button-pay-open-trustwallet"
+                      >
+                        <Wallet className="mr-2 h-4 w-4" />
+                        Open in Trust Wallet
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`inline-flex h-10 items-center justify-center rounded-full border px-4 font-semibold ${hintButtonClass}`}
+                        onClick={() => openInMetaMaskMobile(withWalletHint(window.location.href, "metamask"))}
+                        data-testid="button-pay-open-metamask"
+                      >
+                        <Wallet className="mr-2 h-4 w-4" />
+                        Open in MetaMask
+                      </button>
+                    </>
                   )}
-                  <button
-                    type="button"
-                    className={`inline-flex h-10 items-center justify-center rounded-full border px-4 font-semibold ${hintButtonClass}`}
-                    onClick={() => openInMetaMaskMobile(withWalletHint(window.location.href, "metamask"))}
-                    data-testid="button-pay-open-metamask"
-                  >
-                    <Wallet className="mr-2 h-4 w-4" />
-                    Open in MetaMask
-                  </button>
                 </div>
               </div>
             )}
@@ -1564,16 +1608,7 @@ export default function PayPage() {
                       <Wallet className="mr-2 h-4 w-4" />
                       Trust Wallet
                     </button>
-                    {isTronPlan && (
-                      <button
-                        type="button"
-                        className={`inline-flex h-10 items-center justify-center rounded-full border px-4 font-semibold ${hintButtonClass}`}
-                        onClick={() => openInTronLinkMobile(withWalletHint(window.location.href, "trust"))}
-                      >
-                        <TronIcon className="mr-2 h-4 w-4" />
-                        TronLink
-                      </button>
-                    )}
+
                     <button
                       type="button"
                       className={`inline-flex h-10 items-center justify-center rounded-full border px-4 font-semibold ${hintButtonClass}`}

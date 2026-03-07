@@ -27,19 +27,37 @@ const TRON_FULL_NODE_SHASTA = "https://api.shasta.trongrid.io";
  */
 export function isTronLinkInstalled(): boolean {
   if (typeof window === "undefined") return false;
-  return !!(window.tronWeb || window.tronLink);
+  // Trust Wallet uses window.trustwallet or window.ethereum.isTrust
+  const isTrust = !!((window as any).trustwallet) || !!((window as any).ethereum?.isTrust);
+  return !!(window.tronWeb || window.tronLink || isTrust);
 }
 
 /**
  * Wait for TronLink to be ready (it sometimes initializes async)
  */
 async function waitForTronLink(timeoutMs = 3000): Promise<boolean> {
-  if (isTronLinkInstalled() && (window.tronWeb?.ready || window.tronWeb?.defaultAddress?.base58)) return true;
+  const tryLoadTronWeb = () => {
+    if (!window.tronWeb && (window as any).trustwallet?.tronWeb) {
+      window.tronWeb = (window as any).trustwallet.tronWeb;
+    }
+  };
+
+  const isReady = () => {
+    tryLoadTronWeb();
+    if (!window.tronWeb) return false;
+    if (window.tronWeb.ready) return true;
+    if (window.tronWeb.defaultAddress?.base58) return true;
+    if (window.tronWeb.defaultAddress?.hex) return true;
+    if (typeof window.tronWeb.defaultAddress === "string" && window.tronWeb.defaultAddress.length > 10) return true;
+    return false;
+  };
+
+  if (isTronLinkInstalled() && isReady()) return true;
 
   return new Promise((resolve) => {
     const start = Date.now();
     const interval = setInterval(() => {
-      if (window.tronWeb?.ready || window.tronWeb?.defaultAddress?.base58) {
+      if (isReady()) {
         clearInterval(interval);
         resolve(true);
       }
@@ -90,13 +108,16 @@ export async function connectTronLink(): Promise<TronWalletInfo> {
   }
 
   const ready = await waitForTronLink();
-  if (!ready && !window.tronWeb?.defaultAddress?.base58) {
-    throw new Error("Tron wallet is not ready. Please unlock your wallet and refresh.");
+  let address = window.tronWeb?.defaultAddress?.base58 || window.tronWeb?.defaultAddress?.hex;
+  if (!address && typeof window.tronWeb?.defaultAddress === "string") {
+    address = window.tronWeb.defaultAddress;
   }
-
-  const address = window.tronWeb?.defaultAddress?.base58;
+  
   if (!address) {
-    throw new Error("No TRON account found. Please create or import an account in your wallet.");
+    if (!!((window as any).trustwallet) || !!((window as any).ethereum?.isTrust)) {
+      throw new Error("TRON network not detected. Please tap the 3-dots menu (⋮) in the top right corner, select 'Network' or 'EVM Chain', and change it to TRON.");
+    }
+    throw new Error("Tron wallet is not ready. Please wait a moment, unlock your wallet and refresh.");
   }
 
   const network = detectTronNetwork();
